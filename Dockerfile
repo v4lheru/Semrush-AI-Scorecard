@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install ALL dependencies (including dev dependencies for build)
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY . .
@@ -19,8 +19,8 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine AS runtime
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init and Python for Gemini tracker
+RUN apk add --no-cache dumb-init python3 py3-pip
 
 # Create app user for security
 RUN addgroup -g 1001 -S nodejs
@@ -36,6 +36,12 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.js ./
+COPY --from=builder /app/gemini_tracker.py ./
+COPY --from=builder /app/config.py ./
+COPY --from=builder /app/requirements.txt ./
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Change ownership to nodeuser
 RUN chown -R nodeuser:nodejs /app
@@ -44,9 +50,7 @@ USER nodeuser
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE $PORT
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 8080) + '/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+# Health check removed for Railway compatibility
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
