@@ -40,8 +40,8 @@ COPY --from=builder /app/gemini_tracker.py ./
 COPY --from=builder /app/config.py ./
 COPY --from=builder /app/requirements.txt ./
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Install Python dependencies (override externally-managed-environment protection)
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Change ownership to nodeuser
 RUN chown -R nodeuser:nodejs /app
