@@ -285,8 +285,10 @@ class GeminiAppTracker:
                     category = activity['event_category']
                     categories[category] = categories.get(category, 0) + 1
                 
-                week_label = f"Week {weeks_back - week}"
-                week_date = week_start.strftime('%Y-%m-%d')
+                # Create meaningful week labels with date ranges
+                week_start_str = week_start.strftime('%b %d')
+                week_end_str = week_end.strftime('%b %d')
+                week_label = f"{week_start_str}-{week_end_str}"
                 
                 weekly_data[week_label] = {
                     'week_start': week_start.strftime('%Y-%m-%d'),
@@ -328,8 +330,8 @@ class GeminiAppTracker:
             
             all_users = set()
             
-            # Sort weeks chronologically
-            sorted_weeks = sorted(weekly_data.keys(), key=lambda x: int(x.split()[1]))
+            # Sort weeks chronologically by start date
+            sorted_weeks = sorted(weekly_data.keys(), key=lambda x: weekly_data[x]['week_start'])
             
             for week_label in sorted_weeks:
                 week_data = weekly_data[week_label]
