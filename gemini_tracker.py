@@ -11,6 +11,7 @@ Date: 2025-07-03
 
 import json
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -52,14 +53,28 @@ class GeminiAppTracker:
         logger.info(f"Domain Admin: {config.DOMAIN_ADMIN_EMAIL}")
     
     def _load_service_account_credentials(self) -> service_account.Credentials:
-        """Load service account credentials from JSON file"""
+        """Load service account credentials from JSON file or environment variable"""
         try:
             logger.info("📋 Loading service account credentials...")
             
-            credentials = service_account.Credentials.from_service_account_file(
-                config.SERVICE_ACCOUNT_FILE,
-                scopes=config.SCOPES
-            )
+            # Try to load from environment variable first (for Railway deployment)
+            service_account_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+            
+            if service_account_json:
+                logger.info("🔑 Using service account JSON from environment variable")
+                # Parse JSON from environment variable
+                service_account_info = json.loads(service_account_json)
+                credentials = service_account.Credentials.from_service_account_info(
+                    service_account_info,
+                    scopes=config.SCOPES
+                )
+            else:
+                logger.info("📁 Using service account file from filesystem")
+                # Fallback to file-based loading
+                credentials = service_account.Credentials.from_service_account_file(
+                    config.SERVICE_ACCOUNT_FILE,
+                    scopes=config.SCOPES
+                )
             
             # CRITICAL: Enable domain-wide delegation by setting subject
             delegated_credentials = credentials.with_subject(config.DOMAIN_ADMIN_EMAIL)
