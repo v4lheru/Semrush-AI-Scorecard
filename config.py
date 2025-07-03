@@ -28,8 +28,11 @@ def get_api_endpoint(endpoint_type):
 
 def validate_config():
     """Validate configuration"""
-    if not os.path.exists(SERVICE_ACCOUNT_FILE):
-        print(f"Service account file not found: {SERVICE_ACCOUNT_FILE}")
+    # Check if we have JSON credentials in environment variable
+    service_account_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+    
+    if not service_account_json and not os.path.exists(SERVICE_ACCOUNT_FILE):
+        print(f"Neither GOOGLE_SERVICE_ACCOUNT_JSON environment variable nor service account file found: {SERVICE_ACCOUNT_FILE}")
         return False
     
     if not DOMAIN_ADMIN_EMAIL:
