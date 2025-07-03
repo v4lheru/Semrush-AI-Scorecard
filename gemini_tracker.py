@@ -286,9 +286,23 @@ class GeminiAppTracker:
                     categories[category] = categories.get(category, 0) + 1
                 
                 # Create meaningful week labels with date ranges
+                # Handle cross-month and cross-year scenarios properly
                 week_start_str = week_start.strftime('%b %d')
                 week_end_str = week_end.strftime('%b %d')
-                week_label = f"{week_start_str}-{week_end_str}"
+                
+                # If crossing years, include year in the label
+                if week_start.year != week_end.year:
+                    week_start_str = week_start.strftime('%b %d, %Y')
+                    week_end_str = week_end.strftime('%b %d, %Y')
+                    week_label = f"{week_start_str}-{week_end_str}"
+                # If crossing months, show both months
+                elif week_start.month != week_end.month:
+                    week_label = f"{week_start_str}-{week_end_str}"
+                else:
+                    # Same month, optimize display
+                    week_start_day = week_start.strftime('%d')
+                    week_end_full = week_end.strftime('%b %d')
+                    week_label = f"{week_start.strftime('%b')} {week_start_day}-{week_end.strftime('%d')}"
                 
                 weekly_data[week_label] = {
                     'week_start': week_start.strftime('%Y-%m-%d'),
