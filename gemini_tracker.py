@@ -222,45 +222,54 @@ class GeminiAppTracker:
     
     def get_week_over_week_data(self, weeks_back: int = None) -> Dict[str, Any]:
         """
-        Get week-over-week Gemini app usage data from June 20th onwards
+        Get week-over-week Gemini app usage data using FIXED weekly boundaries
         
         Args:
-            weeks_back: Number of weeks to look back (None = all available weeks from June 20th)
+            weeks_back: Number of weeks to look back (None = all available weeks from June 16th)
         
         Returns:
-            Dict containing weekly usage data
+            Dict containing weekly usage data with consistent boundaries
         """
         try:
-            # Gemini logs are only available from 2025-06-20T00:00:00Z
-            gemini_start_date = datetime(2025, 6, 20, 0, 0, 0)
-            end_date = datetime.utcnow()
+            # FIXED WEEKLY BOUNDARIES - Monday to Sunday
+            # Start from Monday, June 16, 2025 00:00:00 (fixed reference point)
+            fixed_start_date = datetime(2025, 6, 16, 0, 0, 0)  # Monday
+            current_time = datetime.utcnow()
             
-            # Calculate how many weeks are available from June 20th
-            total_days = (end_date - gemini_start_date).days
-            max_weeks = (total_days // 7) + 1  # +1 for partial week
+            # Generate fixed weekly periods
+            weekly_periods = []
+            current_week_start = fixed_start_date
             
-            if weeks_back is None:
-                weeks_back = max_weeks
-                logger.info(f"📊 Generating ALL available week-over-week data from June 20th ({max_weeks} weeks)")
-            else:
-                logger.info(f"📊 Generating week-over-week data for {weeks_back} weeks")
+            while current_week_start < current_time:
+                week_end = current_week_start + timedelta(days=7)
+                weekly_periods.append({
+                    'start': current_week_start,
+                    'end': week_end
+                })
+                current_week_start = week_end
+            
+            # Limit weeks if specified
+            if weeks_back is not None:
+                weekly_periods = weekly_periods[-weeks_back:]
+            
+            logger.info(f"📊 Generating data for {len(weekly_periods)} fixed weekly periods")
             
             weekly_data = {}
             
-            for week in range(min(weeks_back, max_weeks)):
-                # Calculate week boundaries
-                week_end = end_date - timedelta(weeks=week)
-                week_start = week_end - timedelta(days=7)
+            for period in weekly_periods:
+                week_start = period['start']
+                week_end = period['end']
+                
+                # Skip if week_end is before Gemini availability (June 20th)
+                gemini_availability = datetime(2025, 6, 20, 0, 0, 0)
+                if week_end < gemini_availability:
+                    logger.info(f"Skipping week {week_start.strftime('%Y-%m-%d')} - before Gemini availability")
+                    continue
                 
                 # Adjust start time if it's before Gemini availability
-                if week_start < gemini_start_date:
-                    week_start = gemini_start_date
+                if week_start < gemini_availability:
+                    week_start = gemini_availability
                     logger.info(f"Adjusted week start to Gemini availability date: {week_start}")
-                
-                # Skip if week_end is before Gemini availability
-                if week_end < gemini_start_date:
-                    logger.info(f"Skipping week {week + 1} - entirely before Gemini data availability")
-                    continue
                 
                 # Format for API
                 start_time_str = week_start.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -315,7 +324,7 @@ class GeminiAppTracker:
                     'activities': activities
                 }
                 
-                logger.info(f"Week {week + 1}: {total_activities} activities, {len(unique_users)} users")
+                logger.info(f"Week {week_start.strftime('%Y-%m-%d')}: {total_activities} activities, {len(unique_users)} users")
             
             return weekly_data
             
