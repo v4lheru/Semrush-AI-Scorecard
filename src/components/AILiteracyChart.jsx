@@ -19,7 +19,7 @@ const AILiteracyChart = () => {
       ]
     }
 
-    const { weeks, weekly_unique_users, cumulative_users } = geminiData.time_series
+    const { weeks, weekly_unique_users, total_weekly_users } = geminiData.time_series
 
     return weeks.map((week, index) => ({
       period: week,
@@ -27,7 +27,7 @@ const AILiteracyChart = () => {
       Claude: 0, // Not connected to Claude analytics
       Cursor: 0, // Not connected to Cursor analytics  
       ChatGPT: 0, // Not connected to ChatGPT analytics
-      Cumulative: cumulative_users[index] || 0
+      Cumulative: total_weekly_users[index] || 0  // Total weekly active users from ALL AI tools
     }))
   }, [geminiData])
 
@@ -40,7 +40,7 @@ const AILiteracyChart = () => {
           <p className="font-medium text-text-primary">{label}</p>
           {payload.map((entry, index) => {
             const isCumulative = entry.dataKey === 'Cumulative'
-            const description = isCumulative ? 'total unique users ever' : 'weekly active users'
+            const description = isCumulative ? 'total weekly active users (all AI tools)' : 'weekly active users'
             return (
               <p key={index} style={{ color: entry.color }} className="text-sm">
                 {entry.dataKey}: {entry.value} {description}
@@ -57,7 +57,7 @@ const AILiteracyChart = () => {
     <div className="metric-card">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-text-primary">Week over Week AI Usage</h3>
-        <p className="text-sm text-text-secondary">Weekly active users + cumulative unique users by AI tool</p>
+        <p className="text-sm text-text-secondary">Weekly active users by AI tool + total weekly users across all tools</p>
         {loading ? (
           <p className="text-xs text-text-secondary italic mt-1">Loading Gemini analytics...</p>
         ) : error ? (

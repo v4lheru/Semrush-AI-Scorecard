@@ -338,7 +338,7 @@ class GeminiAppTracker:
             
             # Prepare time series data
             weeks = []
-            cumulative_users = []
+            total_weekly_users = []  # Total weekly active users from ALL AI tools
             weekly_activities = []
             weekly_unique_users = []
             
@@ -354,9 +354,19 @@ class GeminiAppTracker:
                 weekly_activities.append(week_data['total_activities'])
                 weekly_unique_users.append(week_data['unique_users'])
                 
-                # Add to cumulative users
+                # Calculate total weekly users from ALL AI tools for this week
+                # Currently we only have Gemini data, but this structure allows for future expansion
+                gemini_users = week_data['unique_users']
+                claude_users = 0  # Future: Add Claude analytics
+                cursor_users = 0  # Future: Add Cursor analytics  
+                chatgpt_users = 0  # Future: Add ChatGPT analytics
+                
+                # Total weekly active users across all AI tools
+                total_weekly = gemini_users + claude_users + cursor_users + chatgpt_users
+                total_weekly_users.append(total_weekly)
+                
+                # Track cumulative unique users ever (for summary stats)
                 all_users.update(week_data['user_list'])
-                cumulative_users.append(len(all_users))
             
             # Calculate week-over-week growth
             wow_growth = []
@@ -379,7 +389,7 @@ class GeminiAppTracker:
                 },
                 'time_series': {
                     'weeks': weeks,
-                    'cumulative_users': cumulative_users,
+                    'total_weekly_users': total_weekly_users,  # Total weekly active users from ALL AI tools
                     'weekly_activities': weekly_activities,
                     'weekly_unique_users': weekly_unique_users,
                     'wow_growth_percent': wow_growth
