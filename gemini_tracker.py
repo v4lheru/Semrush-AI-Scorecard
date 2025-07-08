@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-Gemini App Usage Tracker - Week over Week Analytics
+Gemini ALL APPS Usage Tracker - Complete Workspace Integration
 
-This script focuses specifically on gemini_app usage (standalone Gemini, not Workspace integrations)
-and provides week-over-week usage analytics for dashboard integration.
+This script tracks Gemini usage across ALL Google Workspace applications:
+- gemini_app (standalone Gemini)
+- gmail (Help me write, summarize)
+- docs (Help me write, proofread, generate)
+- sheets (AI functions, help me organize)
+- slides (Generate images, help me visualize)
+- meet (Summaries, action items, studio features)
+- drive (Summarize files, help me organize)
+- chat (Gemini conversations)
 
 Author: PACT Cline
-Date: 2025-07-03
+Date: 2025-07-08
 """
 
 import json
@@ -150,12 +157,12 @@ class GeminiAppTracker:
             logger.error(f"❌ Request error: {e}")
             raise
     
-    def get_gemini_app_activities(self, 
+    def get_all_gemini_activities(self, 
                                 start_time: str,
                                 end_time: str,
                                 max_results: int = 1000) -> List[Dict[str, Any]]:
         """
-        Get Gemini app activities for a specific time period
+        Get ALL Gemini activities across ALL Workspace applications
         
         Args:
             start_time: Start time in ISO format
@@ -163,10 +170,10 @@ class GeminiAppTracker:
             max_results: Maximum number of results
         
         Returns:
-            List of parsed Gemini app activity records
+            List of ALL Gemini activity records across all apps
         """
         try:
-            logger.info(f"📊 Fetching Gemini app activities from {start_time} to {end_time}")
+            logger.info(f"📊 Fetching ALL Gemini activities across ALL apps from {start_time} to {end_time}")
             
             url = config.get_api_endpoint('activities')
             
@@ -179,9 +186,15 @@ class GeminiAppTracker:
             
             data = self._make_api_request(url, params)
             
-            # Parse and filter for gemini_app only
+            # Parse ALL Gemini activities (no app filter - include all apps)
             items = data.get('items', [])
-            gemini_app_activities = []
+            all_gemini_activities = []
+            
+            # Focus on these main apps
+            target_apps = {
+                'gemini_app', 'gmail', 'docs', 'sheets', 
+                'slides', 'meet', 'drive', 'chat'
+            }
             
             for item in items:
                 actor = item.get('actor', {})
@@ -201,23 +214,24 @@ class GeminiAppTracker:
                         param_value = param.get('value', '')
                         param_dict[param_name] = param_value
                     
-                    # Filter for gemini_app only
-                    app_name = param_dict.get('app_name', '')
-                    if app_name == 'gemini_app':
+                    # Include ALL target apps (not just gemini_app)
+                    app_name = param_dict.get('app_name', 'Unknown')
+                    if app_name in target_apps:
                         activity_record = {
                             'timestamp': timestamp,
                             'user_email': user_email,
+                            'app_name': app_name,
                             'action': param_dict.get('action', 'Unknown'),
                             'event_category': param_dict.get('event_category', 'Unknown'),
                             'feature_source': param_dict.get('feature_source', 'Unknown')
                         }
-                        gemini_app_activities.append(activity_record)
+                        all_gemini_activities.append(activity_record)
             
-            logger.info(f"📈 Retrieved {len(gemini_app_activities)} Gemini app activity records")
-            return gemini_app_activities
+            logger.info(f"📈 Retrieved {len(all_gemini_activities)} TOTAL Gemini activity records across ALL apps")
+            return all_gemini_activities
             
         except Exception as e:
-            logger.error(f"❌ Error fetching Gemini app activities: {e}")
+            logger.error(f"❌ Error fetching ALL Gemini activities: {e}")
             raise
     
     def get_week_over_week_data(self, weeks_back: int = None) -> Dict[str, Any]:
@@ -276,19 +290,48 @@ class GeminiAppTracker:
                 end_time_str = week_end.strftime('%Y-%m-%dT%H:%M:%SZ')
                 
                 # Get activities for this week
-                activities = self.get_gemini_app_activities(start_time_str, end_time_str)
+                activities = self.get_all_gemini_activities(start_time_str, end_time_str)
                 
                 # Calculate metrics
                 unique_users = set(activity['user_email'] for activity in activities)
                 total_activities = len(activities)
                 
-                # Group by action type
+                # Group by app (for detailed breakdown)
+                apps_breakdown = {}
+                for activity in activities:
+                    app = activity['app_name']
+                    if app not in apps_breakdown:
+                        apps_breakdown[app] = {
+                            'users': set(),
+                            'activities': 0,
+                            'actions': {},
+                            'categories': {}
+                        }
+                    
+                    apps_breakdown[app]['users'].add(activity['user_email'])
+                    apps_breakdown[app]['activities'] += 1
+                    
+                    # Track actions per app
+                    action = activity['action']
+                    apps_breakdown[app]['actions'][action] = apps_breakdown[app]['actions'].get(action, 0) + 1
+                    
+                    # Track categories per app
+                    category = activity['event_category']
+                    apps_breakdown[app]['categories'][category] = apps_breakdown[app]['categories'].get(category, 0) + 1
+                
+                # Convert sets to counts for JSON serialization
+                for app in apps_breakdown:
+                    apps_breakdown[app]['unique_users'] = len(apps_breakdown[app]['users'])
+                    apps_breakdown[app]['user_list'] = list(apps_breakdown[app]['users'])
+                    del apps_breakdown[app]['users']  # Remove set object
+                
+                # Group by action type (overall)
                 actions = {}
                 for activity in activities:
                     action = activity['action']
                     actions[action] = actions.get(action, 0) + 1
                 
-                # Group by event category
+                # Group by event category (overall)
                 categories = {}
                 for activity in activities:
                     category = activity['event_category']
@@ -321,6 +364,7 @@ class GeminiAppTracker:
                     'user_list': list(unique_users),
                     'actions': actions,
                     'categories': categories,
+                    'apps_breakdown': apps_breakdown,  # Per-app detailed breakdown
                     'activities': activities
                 }
                 
