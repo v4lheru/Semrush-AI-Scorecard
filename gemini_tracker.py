@@ -258,15 +258,25 @@ class GeminiAppTracker:
             
             # Generate weekly periods with FIXED boundaries
             weekly_periods = []
-            for week_num in range(weeks_since_anchor + 1):  # +1 to include current week if complete
+            for week_num in range(weeks_since_anchor + 2):  # +2 to include current partial week
                 week_start = FIXED_WEEK_1_START + timedelta(weeks=week_num)
                 week_end = week_start + timedelta(days=7)
                 
-                # Only include weeks that have completely ended (no partial weeks)
+                # Include completed weeks (historical - static data)
                 if week_end <= current_time:
                     weekly_periods.append({
                         'start': week_start,
-                        'end': week_end
+                        'end': week_end,
+                        'is_complete': True,
+                        'is_current': False
+                    })
+                # Include current partial week (live - changing data)
+                elif week_start <= current_time < week_end:
+                    weekly_periods.append({
+                        'start': week_start,
+                        'end': current_time,  # Use current time as end for partial week
+                        'is_complete': False,
+                        'is_current': True
                     })
             
             logger.info(f"📊 Generated {len(weekly_periods)} complete weeks from fixed anchor point")
@@ -351,21 +361,30 @@ class GeminiAppTracker:
                 # Create meaningful week labels with date ranges
                 # Handle cross-month and cross-year scenarios properly
                 week_start_str = week_start.strftime('%b %d')
-                week_end_str = week_end.strftime('%b %d')
+                
+                # For current week, show "current" indicator and use current time as end
+                if period.get('is_current', False):
+                    week_end_str = "Current"
+                    week_label_suffix = " (Live)"
+                else:
+                    week_end_str = week_end.strftime('%b %d')
+                    week_label_suffix = ""
                 
                 # If crossing years, include year in the label
-                if week_start.year != week_end.year:
+                if week_start.year != week_end.year and not period.get('is_current', False):
                     week_start_str = week_start.strftime('%b %d, %Y')
                     week_end_str = week_end.strftime('%b %d, %Y')
-                    week_label = f"{week_start_str}-{week_end_str}"
+                    week_label = f"{week_start_str}-{week_end_str}{week_label_suffix}"
                 # If crossing months, show both months
-                elif week_start.month != week_end.month:
-                    week_label = f"{week_start_str}-{week_end_str}"
+                elif week_start.month != week_end.month and not period.get('is_current', False):
+                    week_label = f"{week_start_str}-{week_end_str}{week_label_suffix}"
+                elif period.get('is_current', False):
+                    # Current week - show start date and "Current"
+                    week_label = f"{week_start_str}-{week_end_str}{week_label_suffix}"
                 else:
                     # Same month, optimize display
                     week_start_day = week_start.strftime('%d')
-                    week_end_full = week_end.strftime('%b %d')
-                    week_label = f"{week_start.strftime('%b')} {week_start_day}-{week_end.strftime('%d')}"
+                    week_label = f"{week_start.strftime('%b')} {week_start_day}-{week_end.strftime('%d')}{week_label_suffix}"
                 
                 weekly_data[week_label] = {
                     'week_start': week_start.strftime('%Y-%m-%d'),
