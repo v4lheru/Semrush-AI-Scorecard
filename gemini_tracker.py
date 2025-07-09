@@ -245,22 +245,33 @@ class GeminiAppTracker:
             Dict containing weekly usage data with consistent boundaries
         """
         try:
-            # FIXED WEEKLY BOUNDARIES - Monday to Sunday
-            # Start from Monday, June 16, 2025 00:00:00 (fixed reference point)
-            fixed_start_date = datetime(2025, 6, 16, 0, 0, 0)  # Monday
+            # FUTURE-PROOF FIXED WEEKLY BOUNDARIES
+            # Generate weeks automatically but with FIXED start point that never changes
+            
+            # FIXED ANCHOR POINT - This never changes regardless of when script runs
+            FIXED_WEEK_1_START = datetime(2025, 6, 16, 0, 0, 0)  # Monday, June 16, 2025 00:00:00
+            
+            # Calculate how many complete weeks have passed since the fixed anchor
             current_time = datetime.utcnow()
+            days_since_anchor = (current_time - FIXED_WEEK_1_START).days
+            weeks_since_anchor = days_since_anchor // 7  # Only complete weeks
             
-            # Generate fixed weekly periods
+            # Generate weekly periods with FIXED boundaries
             weekly_periods = []
-            current_week_start = fixed_start_date
+            for week_num in range(weeks_since_anchor + 1):  # +1 to include current week if complete
+                week_start = FIXED_WEEK_1_START + timedelta(weeks=week_num)
+                week_end = week_start + timedelta(days=7)
+                
+                # Only include weeks that have completely ended (no partial weeks)
+                if week_end <= current_time:
+                    weekly_periods.append({
+                        'start': week_start,
+                        'end': week_end
+                    })
             
-            while current_week_start < current_time:
-                week_end = current_week_start + timedelta(days=7)
-                weekly_periods.append({
-                    'start': current_week_start,
-                    'end': week_end
-                })
-                current_week_start = week_end
+            logger.info(f"📊 Generated {len(weekly_periods)} complete weeks from fixed anchor point")
+            logger.info(f"🔒 Anchor: {FIXED_WEEK_1_START.strftime('%Y-%m-%d %H:%M:%S')} (never changes)")
+            logger.info(f"⏰ Current time: {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
             
             # Limit weeks if specified
             if weeks_back is not None:
