@@ -211,17 +211,61 @@ class CachedGeminiTracker:
             logger.error(f"❌ Error getting historical weeks: {e}")
             return {}
     
+    def get_current_week_definition(self) -> Dict[str, str]:
+        """Dynamically determine current week based on date"""
+        now = datetime.utcnow()
+        
+        # Define week boundaries (Mondays)
+        week_starts = [
+            datetime(2025, 6, 20),  # Week 1: Jun 20-22 (Fri-Sun)
+            datetime(2025, 6, 23),  # Week 2: Jun 23-29 (Mon-Sun)
+            datetime(2025, 6, 30),  # Week 3: Jun 30-Jul 6 (Mon-Sun)
+            datetime(2025, 7, 7),   # Week 4: Jul 7-13 (Mon-Sun)
+            datetime(2025, 7, 14),  # Week 5: Jul 14-20 (Mon-Sun)
+            datetime(2025, 7, 21),  # Week 6: Jul 21-27 (Mon-Sun)
+            datetime(2025, 7, 28),  # Week 7: Jul 28-Aug 3 (Mon-Sun)
+        ]
+        
+        # Find current week
+        current_week_num = 1
+        current_start = week_starts[0]
+        
+        for i, week_start in enumerate(week_starts):
+            if now >= week_start:
+                current_week_num = i + 1
+                current_start = week_start
+            else:
+                break
+        
+        # Calculate week end (Sunday or current time if in progress)
+        week_end = current_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+        if now < week_end:
+            week_end = now  # Week in progress
+        
+        # Format dates
+        start_str = current_start.strftime('%b %d')
+        if week_end.date() == now.date():
+            end_str = 'Current'
+            label = f'Week {current_week_num} ({start_str}-Current) (Live)'
+        else:
+            end_str = week_end.strftime('%b %d')
+            label = f'Week {current_week_num} ({start_str}-{end_str})'
+        
+        return {
+            'label': label,
+            'start': current_start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'end': week_end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'week_number': current_week_num
+        }
+
     def get_current_week(self) -> Dict[str, Any]:
         """Get current week data (always live)"""
         try:
             logger.info("🔴 Fetching current week (live data)")
             
-            # Current week definition
-            current_week = {
-                'label': 'Week 4 (Jul 7-Current) (Live)',
-                'start': '2025-07-07T00:00:00Z',
-                'end': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-            }
+            # Dynamically determine current week
+            current_week = self.get_current_week_definition()
+            logger.info(f"📅 Current week: {current_week['label']}")
             
             week_data = self.fetch_gemini_app_week(current_week['start'], current_week['end'])
             
@@ -229,6 +273,7 @@ class CachedGeminiTracker:
                 'period': current_week['label'],
                 'start_time': current_week['start'],
                 'end_time': current_week['end'],
+                'week_number': current_week['week_number'],
                 **week_data
             }
             
