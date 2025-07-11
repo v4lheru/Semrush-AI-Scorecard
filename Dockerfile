@@ -37,6 +37,8 @@ RUN npm ci --only=production && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/gemini_tracker.py ./
+COPY --from=builder /app/gemini_tracker_cached.py ./
+COPY --from=builder /app/gemini_deep_dive_cached.py ./
 COPY --from=builder /app/config.py ./
 COPY --from=builder /app/requirements.txt ./
 
