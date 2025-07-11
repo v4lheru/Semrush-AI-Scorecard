@@ -1,4 +1,4 @@
-# Multi-stage build for optimized production image
+# Multi-stage build for optimized production image (with Python scripts)
 FROM node:18-alpine AS builder
 
 # Set working directory
@@ -40,6 +40,9 @@ COPY --from=builder /app/gemini_tracker_cached.py ./
 COPY --from=builder /app/gemini_deep_dive_cached.py ./
 COPY --from=builder /app/config.py ./
 COPY --from=builder /app/requirements.txt ./
+
+# Debug: List files to verify Python scripts are copied
+RUN ls -la /app/*.py && echo "Python files verified in container"
 
 # Install Python dependencies (override externally-managed-environment protection)
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
