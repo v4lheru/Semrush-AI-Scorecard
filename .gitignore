@@ -83,3 +83,4 @@ service-account.json
 # Temporary files
 *.tmp
 *.temp
+cache/
