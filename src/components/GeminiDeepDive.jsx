@@ -1,44 +1,67 @@
 import React from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { useGeminiData } from '../hooks/useGeminiData'
 
 const GeminiDeepDive = () => {
-  const { data: geminiData, loading, error } = useGeminiData()
+  const [deepDiveData, setDeepDiveData] = React.useState(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState(null)
 
-  // Prepare per-app chart data
+  // Fetch deep dive data
+  React.useEffect(() => {
+    const fetchDeepDiveData = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/gemini/deep-dive')
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const data = await response.json()
+        setDeepDiveData(data)
+        setError(null)
+      } catch (err) {
+        console.error('Error fetching deep dive data:', err)
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDeepDiveData()
+  }, [])
+
+  // Prepare per-app chart data (simplified for current week only)
   const perAppData = React.useMemo(() => {
-    if (!geminiData?.raw_weekly_data) {
+    if (!deepDiveData?.raw_weekly_data) {
       return []
     }
 
     try {
-      const weeks = Object.keys(geminiData.raw_weekly_data).sort()
+      const currentWeekData = deepDiveData.raw_weekly_data['Current Week (Live)']
+      if (!currentWeekData?.app_breakdown) {
+        return []
+      }
+
       const apps = ['gemini_app', 'gmail', 'docs', 'sheets', 'slides', 'meet', 'drive', 'chat']
+      const chartPoint = { period: 'Current Week' }
       
-      return weeks.map(week => {
-        const weekData = geminiData.raw_weekly_data[week] || {}
-        const appsBreakdown = weekData.apps_breakdown || {}
-        
-        const chartPoint = { period: week }
-        apps.forEach(app => {
-          chartPoint[app] = (appsBreakdown[app] && appsBreakdown[app].unique_users) || 0
-        })
-        
-        return chartPoint
+      apps.forEach(app => {
+        const appData = currentWeekData.app_breakdown[app]
+        chartPoint[app] = appData ? appData.users : 0
       })
+      
+      return [chartPoint]
     } catch (error) {
       console.error('Error preparing per-app chart data:', error)
       return []
     }
-  }, [geminiData])
+  }, [deepDiveData])
 
   // Prepare app summary data
   const appSummary = React.useMemo(() => {
-    if (!geminiData?.raw_weekly_data) {
+    if (!deepDiveData?.app_analysis?.top_apps) {
       return []
     }
 
-    const apps = ['gemini_app', 'gmail', 'docs', 'sheets', 'slides', 'meet', 'drive', 'chat']
     const appLabels = {
       gemini_app: 'Gemini App',
       gmail: 'Gmail',
@@ -50,37 +73,16 @@ const GeminiDeepDive = () => {
       chat: 'Google Chat'
     }
 
-    const summary = apps.map(app => {
-      let totalUsers = new Set()
-      let totalActivities = 0
-      let latestWeekUsers = 0
+    const summary = Object.entries(deepDiveData.app_analysis.top_apps).map(([app, data]) => ({
+      app,
+      label: appLabels[app] || app,
+      totalUsers: data.max_weekly_users,
+      totalActivities: data.total_activities,
+      latestWeekUsers: data.max_weekly_users // Same as total for current week only
+    }))
 
-      Object.values(geminiData.raw_weekly_data).forEach(weekData => {
-        const appData = weekData.apps_breakdown?.[app]
-        if (appData) {
-          appData.user_list?.forEach(user => totalUsers.add(user))
-          totalActivities += appData.activities || 0
-        }
-      })
-
-      // Get latest week data
-      const weeks = Object.keys(geminiData.raw_weekly_data).sort()
-      if (weeks.length > 0) {
-        const latestWeek = geminiData.raw_weekly_data[weeks[weeks.length - 1]]
-        latestWeekUsers = latestWeek.apps_breakdown?.[app]?.unique_users || 0
-      }
-
-      return {
-        app,
-        label: appLabels[app],
-        totalUsers: totalUsers.size,
-        totalActivities,
-        latestWeekUsers
-      }
-    }).filter(item => item.totalUsers > 0) // Only show apps with usage
-
-    return summary.sort((a, b) => b.totalUsers - a.totalUsers)
-  }, [geminiData])
+    return summary.sort((a, b) => b.totalActivities - a.totalActivities)
+  }, [deepDiveData])
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -266,14 +268,14 @@ const GeminiDeepDive = () => {
         </div>
 
         {/* Latest Week Breakdown */}
-        {geminiData?.latest_week_breakdown && (
+        {deepDiveData?.action_analysis && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top Actions */}
-            {Object.keys(geminiData.latest_week_breakdown.actions).length > 0 && (
+            {Object.keys(deepDiveData.action_analysis.top_actions).length > 0 && (
               <div className="metric-card">
                 <h3 className="text-lg font-semibold text-text-primary mb-4">Top Actions (Latest Week)</h3>
                 <div className="space-y-2">
-                  {Object.entries(geminiData.latest_week_breakdown.actions)
+                  {Object.entries(deepDiveData.action_analysis.top_actions)
                     .sort(([,a], [,b]) => b - a)
                     .slice(0, 10)
                     .map(([action, count]) => (
@@ -286,17 +288,17 @@ const GeminiDeepDive = () => {
               </div>
             )}
 
-            {/* Top Categories */}
-            {Object.keys(geminiData.latest_week_breakdown.categories).length > 0 && (
+            {/* App Usage Categories */}
+            {Object.keys(deepDiveData.app_analysis.top_apps).length > 0 && (
               <div className="metric-card">
                 <h3 className="text-lg font-semibold text-text-primary mb-4">Usage Categories (Latest Week)</h3>
                 <div className="space-y-2">
-                  {Object.entries(geminiData.latest_week_breakdown.categories)
-                    .sort(([,a], [,b]) => b - a)
-                    .map(([category, count]) => (
-                      <div key={category} className="flex justify-between items-center">
-                        <span className="text-text-secondary text-sm">{category}</span>
-                        <span className="text-text-primary font-medium">{count}</span>
+                  {Object.entries(deepDiveData.app_analysis.top_apps)
+                    .sort(([,a], [,b]) => b.total_activities - a.total_activities)
+                    .map(([app, data]) => (
+                      <div key={app} className="flex justify-between items-center">
+                        <span className="text-text-secondary text-sm">{app.replace('_', ' ')}</span>
+                        <span className="text-text-primary font-medium">{data.total_activities}</span>
                       </div>
                     ))}
                 </div>
@@ -308,7 +310,7 @@ const GeminiDeepDive = () => {
         {/* Footer */}
         <div className="mt-8 text-center text-text-secondary text-sm">
           <p>Data includes: Gemini App, Gmail, Docs, Sheets, Slides, Meet, Drive, and Chat</p>
-          <p className="mt-1">Last updated: {geminiData?.last_updated ? new Date(geminiData.last_updated).toLocaleString() : 'Unknown'}</p>
+          <p className="mt-1">Last updated: {deepDiveData?.last_updated ? new Date(deepDiveData.last_updated).toLocaleString() : 'Unknown'}</p>
         </div>
       </div>
     </div>
