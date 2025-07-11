@@ -32,14 +32,23 @@ const AILiteracyChart = () => {
       ]
     }
 
-    return weeks.map((week, index) => ({
-      period: week || `Week ${index + 1}`,
-      Gemini: (weekly_unique_users && weekly_unique_users[index]) || 0,
-      Claude: 0, // Not connected to Claude analytics
-      Cursor: 0, // Not connected to Cursor analytics  
-      ChatGPT: 0, // Not connected to ChatGPT analytics
-      Cumulative: (total_weekly_users && total_weekly_users[index]) || 0  // Total weekly active users from ALL AI tools
-    }))
+    return weeks.map((week, index) => {
+      // Extract just the dates from week labels like "Week 1 (Jun 20-22)"
+      let period = week || `Week ${index + 1}`
+      const dateMatch = period.match(/\(([^)]+)\)/)
+      if (dateMatch) {
+        period = dateMatch[1] // Extract just "Jun 20-22" part
+      }
+      
+      return {
+        period: period,
+        Gemini: (weekly_unique_users && weekly_unique_users[index]) || 0,
+        Claude: 0, // Not connected to Claude analytics
+        Cursor: 0, // Not connected to Cursor analytics  
+        ChatGPT: 0, // Not connected to ChatGPT analytics
+        Cumulative: (total_weekly_users && total_weekly_users[index]) || 0  // Total weekly active users from ALL AI tools
+      }
+    })
   }, [geminiData])
 
   const isConnected = geminiData && !geminiData.data_source?.includes('Not connected')
