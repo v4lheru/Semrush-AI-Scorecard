@@ -326,7 +326,7 @@ class CachedGeminiDeepDive:
             return {}
     
     def get_deep_dive_data(self) -> Dict[str, Any]:
-        """Get current week deep dive analysis only (fast, no historical data)"""
+        """Get current week deep dive analysis with consistent Gemini app data"""
         try:
             logger.info("🔍 Generating current week deep dive analysis (fast mode)")
             
@@ -340,6 +340,19 @@ class CachedGeminiDeepDive:
             # Extract current week data
             app_breakdown = current_data.get('app_breakdown', {})
             action_breakdown = current_data.get('action_breakdown', {})
+            
+            # Import main dashboard tracker to get consistent Gemini app data
+            from gemini_tracker_cached import CachedGeminiTracker
+            main_tracker = CachedGeminiTracker()
+            main_current_week = main_tracker.get_current_week()
+            
+            # Use main dashboard data for gemini_app to ensure consistency
+            if main_current_week and 'gemini_app' in app_breakdown:
+                app_breakdown['gemini_app'] = {
+                    'count': main_current_week.get('activities', app_breakdown['gemini_app']['count']),
+                    'users': main_current_week.get('users', app_breakdown['gemini_app']['users'])
+                }
+                logger.info(f"🔄 Using main dashboard data for gemini_app: {app_breakdown['gemini_app']['users']} users")
             
             # Sort by usage
             sorted_apps = sorted(app_breakdown.items(), key=lambda x: x[1]['count'], reverse=True)
