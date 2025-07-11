@@ -162,12 +162,12 @@ class GeminiAppTracker:
                                 end_time: str,
                                 max_results: int = 1000) -> List[Dict[str, Any]]:
         """
-        Get ALL Gemini activities across ALL Workspace applications
+        Get ALL Gemini activities across ALL Workspace applications with pagination support
         
         Args:
             start_time: Start time in ISO format
             end_time: End time in ISO format
-            max_results: Maximum number of results
+            max_results: Maximum number of results per page
         
         Returns:
             List of ALL Gemini activity records across all apps
@@ -176,19 +176,9 @@ class GeminiAppTracker:
             logger.info(f"📊 Fetching ALL Gemini activities across ALL apps from {start_time} to {end_time}")
             
             url = config.get_api_endpoint('activities')
-            
-            params = {
-                'eventName': config.GEMINI_EVENT_NAME,
-                'maxResults': max_results,
-                'startTime': start_time,
-                'endTime': end_time
-            }
-            
-            data = self._make_api_request(url, params)
-            
-            # Parse ALL Gemini activities (no app filter - include all apps)
-            items = data.get('items', [])
             all_gemini_activities = []
+            next_page_token = None
+            page_count = 0
             
             # Focus on these main apps
             target_apps = {
@@ -196,39 +186,87 @@ class GeminiAppTracker:
                 'slides', 'meet', 'drive', 'chat'
             }
             
-            for item in items:
-                actor = item.get('actor', {})
-                events = item.get('events', [])
-                activity_id = item.get('id', {})
+            # Fetch all pages to ensure we get complete data
+            while True:
+                page_count += 1
+                logger.info(f"📄 Fetching page {page_count}...")
                 
-                user_email = actor.get('email', 'Unknown')
-                timestamp = activity_id.get('time', '')
+                params = {
+                    'eventName': config.GEMINI_EVENT_NAME,
+                    'maxResults': max_results,
+                    'startTime': start_time,
+                    'endTime': end_time
+                }
                 
-                for event in events:
-                    parameters = event.get('parameters', [])
+                if next_page_token:
+                    params['pageToken'] = next_page_token
+                
+                data = self._make_api_request(url, params)
+                
+                # Parse activities from this page
+                items = data.get('items', [])
+                page_activities = []
+                
+                for item in items:
+                    actor = item.get('actor', {})
+                    events = item.get('events', [])
+                    activity_id = item.get('id', {})
                     
-                    # Extract parameters into a dict
-                    param_dict = {}
-                    for param in parameters:
-                        param_name = param.get('name', '')
-                        param_value = param.get('value', '')
-                        param_dict[param_name] = param_value
+                    user_email = actor.get('email', 'Unknown')
+                    timestamp = activity_id.get('time', '')
                     
-                    # Include ALL target apps (not just gemini_app)
-                    app_name = param_dict.get('app_name', 'Unknown')
-                    if app_name in target_apps:
-                        activity_record = {
-                            'timestamp': timestamp,
-                            'user_email': user_email,
-                            'app_name': app_name,
-                            'action': param_dict.get('action', 'Unknown'),
-                            'event_category': param_dict.get('event_category', 'Unknown'),
-                            'feature_source': param_dict.get('feature_source', 'Unknown')
-                        }
-                        all_gemini_activities.append(activity_record)
+                    for event in events:
+                        parameters = event.get('parameters', [])
+                        
+                        # Extract parameters into a dict
+                        param_dict = {}
+                        for param in parameters:
+                            param_name = param.get('name', '')
+                            param_value = param.get('value', '')
+                            param_dict[param_name] = param_value
+                        
+                        # Include ALL target apps (not just gemini_app)
+                        app_name = param_dict.get('app_name', 'Unknown')
+                        if app_name in target_apps:
+                            activity_record = {
+                                'timestamp': timestamp,
+                                'user_email': user_email,
+                                'app_name': app_name,
+                                'action': param_dict.get('action', 'Unknown'),
+                                'event_category': param_dict.get('event_category', 'Unknown'),
+                                'feature_source': param_dict.get('feature_source', 'Unknown')
+                            }
+                            page_activities.append(activity_record)
+                
+                all_gemini_activities.extend(page_activities)
+                logger.info(f"📄 Page {page_count}: {len(page_activities)} activities")
+                
+                # Check if there are more pages
+                next_page_token = data.get('nextPageToken')
+                if not next_page_token:
+                    break
+                
+                # Safety check to prevent infinite loops
+                if page_count >= 10:  # Max 10 pages
+                    logger.warning(f"⚠️ Reached maximum page limit ({page_count}), stopping pagination")
+                    break
             
-            logger.info(f"📈 Retrieved {len(all_gemini_activities)} TOTAL Gemini activity records across ALL apps")
-            return all_gemini_activities
+            # Deduplicate activities (in case of API inconsistencies)
+            unique_activities = []
+            seen_activities = set()
+            
+            for activity in all_gemini_activities:
+                # Create a unique key for each activity
+                activity_key = f"{activity['timestamp']}_{activity['user_email']}_{activity['app_name']}_{activity['action']}"
+                if activity_key not in seen_activities:
+                    seen_activities.add(activity_key)
+                    unique_activities.append(activity)
+            
+            logger.info(f"📈 Retrieved {len(unique_activities)} UNIQUE Gemini activity records across ALL apps (from {page_count} pages)")
+            if len(all_gemini_activities) != len(unique_activities):
+                logger.info(f"🔄 Removed {len(all_gemini_activities) - len(unique_activities)} duplicate activities")
+            
+            return unique_activities
             
         except Exception as e:
             logger.error(f"❌ Error fetching ALL Gemini activities: {e}")
@@ -272,9 +310,12 @@ class GeminiAppTracker:
                     })
                 # Include current partial week (live - changing data)
                 elif week_start <= current_time < week_end:
+                    # For current week, use a fixed end time to avoid fluctuation
+                    # Use end of current day to capture all activity so far
+                    current_day_end = current_time.replace(hour=23, minute=59, second=59, microsecond=999999)
                     weekly_periods.append({
                         'start': week_start,
-                        'end': current_time,  # Use current time as end for partial week
+                        'end': current_day_end,  # Use end of current day
                         'is_complete': False,
                         'is_current': True
                     })
