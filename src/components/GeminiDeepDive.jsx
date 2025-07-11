@@ -11,20 +11,25 @@ const GeminiDeepDive = () => {
       return []
     }
 
-    const weeks = Object.keys(geminiData.raw_weekly_data).sort()
-    const apps = ['gemini_app', 'gmail', 'docs', 'sheets', 'slides', 'meet', 'drive', 'chat']
-    
-    return weeks.map(week => {
-      const weekData = geminiData.raw_weekly_data[week]
-      const appsBreakdown = weekData.apps_breakdown || {}
+    try {
+      const weeks = Object.keys(geminiData.raw_weekly_data).sort()
+      const apps = ['gemini_app', 'gmail', 'docs', 'sheets', 'slides', 'meet', 'drive', 'chat']
       
-      const chartPoint = { period: week }
-      apps.forEach(app => {
-        chartPoint[app] = appsBreakdown[app]?.unique_users || 0
+      return weeks.map(week => {
+        const weekData = geminiData.raw_weekly_data[week] || {}
+        const appsBreakdown = weekData.apps_breakdown || {}
+        
+        const chartPoint = { period: week }
+        apps.forEach(app => {
+          chartPoint[app] = (appsBreakdown[app] && appsBreakdown[app].unique_users) || 0
+        })
+        
+        return chartPoint
       })
-      
-      return chartPoint
-    })
+    } catch (error) {
+      console.error('Error preparing per-app chart data:', error)
+      return []
+    }
   }, [geminiData])
 
   // Prepare app summary data

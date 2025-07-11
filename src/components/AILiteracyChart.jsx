@@ -19,15 +19,26 @@ const AILiteracyChart = () => {
       ]
     }
 
-    const { weeks, weekly_unique_users, total_weekly_users } = geminiData.time_series
+    // Safely extract data with fallbacks
+    const timeSeriesData = geminiData.time_series || {}
+    const weeks = timeSeriesData.weeks || []
+    const weekly_unique_users = timeSeriesData.weekly_unique_users || []
+    const total_weekly_users = timeSeriesData.total_weekly_users || []
+
+    // Ensure we have data to work with
+    if (weeks.length === 0) {
+      return [
+        { period: 'No Data', Gemini: 0, Claude: 0, Cursor: 0, ChatGPT: 0, Cumulative: 0 }
+      ]
+    }
 
     return weeks.map((week, index) => ({
-      period: week,
-      Gemini: weekly_unique_users[index] || 0,
+      period: week || `Week ${index + 1}`,
+      Gemini: (weekly_unique_users && weekly_unique_users[index]) || 0,
       Claude: 0, // Not connected to Claude analytics
       Cursor: 0, // Not connected to Cursor analytics  
       ChatGPT: 0, // Not connected to ChatGPT analytics
-      Cumulative: total_weekly_users[index] || 0  // Total weekly active users from ALL AI tools
+      Cumulative: (total_weekly_users && total_weekly_users[index]) || 0  // Total weekly active users from ALL AI tools
     }))
   }, [geminiData])
 
