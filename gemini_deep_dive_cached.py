@@ -281,87 +281,71 @@ class CachedGeminiDeepDive:
             return {}
     
     def get_deep_dive_data(self) -> Dict[str, Any]:
-        """Get complete deep dive analysis with caching"""
+        """Get current week deep dive analysis only (fast, no historical data)"""
         try:
-            logger.info("🔍 Generating deep dive analysis")
+            logger.info("🔍 Generating current week deep dive analysis (fast mode)")
             
-            # Get historical data (cached)
-            historical_data = self.get_historical_deep_dive()
-            
-            # Get current week (live)
+            # Get ONLY current week (live) - no historical data to avoid timeouts
             current_data = self.get_current_deep_dive()
             
-            # Combine all weeks
-            all_weeks = {**historical_data}
-            if current_data:
-                all_weeks[current_data['period']] = current_data
+            if not current_data:
+                logger.warning("⚠️ No current week data available")
+                return {}
             
-            # Aggregate app usage across all weeks
-            total_app_breakdown = {}
-            total_action_breakdown = {}
-            weekly_totals = []
-            
-            for week_label in ['Week 1 (Jun 20-22)', 'Week 2 (Jun 23-29)', 'Week 3 (Jun 30-Jul 6)', 'Week 4 (Jul 7-Current) (Live)']:
-                if week_label in all_weeks:
-                    week_data = all_weeks[week_label]
-                    weekly_totals.append({
-                        'week': week_label.replace(' (Live)', ''),
-                        'total_activities': week_data.get('total_activities', 0),
-                        'total_users': week_data.get('total_users', 0)
-                    })
-                    
-                    # Aggregate apps
-                    app_breakdown = week_data.get('app_breakdown', {})
-                    for app, data in app_breakdown.items():
-                        if app not in total_app_breakdown:
-                            total_app_breakdown[app] = {'total_activities': 0, 'max_weekly_users': 0}
-                        total_app_breakdown[app]['total_activities'] += data.get('count', 0)
-                        total_app_breakdown[app]['max_weekly_users'] = max(
-                            total_app_breakdown[app]['max_weekly_users'],
-                            data.get('users', 0)
-                        )
-                    
-                    # Aggregate actions
-                    action_breakdown = week_data.get('action_breakdown', {})
-                    for action, count in action_breakdown.items():
-                        if action not in total_action_breakdown:
-                            total_action_breakdown[action] = 0
-                        total_action_breakdown[action] += count
+            # Extract current week data
+            app_breakdown = current_data.get('app_breakdown', {})
+            action_breakdown = current_data.get('action_breakdown', {})
             
             # Sort by usage
-            sorted_apps = sorted(total_app_breakdown.items(), key=lambda x: x[1]['total_activities'], reverse=True)
-            sorted_actions = sorted(total_action_breakdown.items(), key=lambda x: x[1], reverse=True)
+            sorted_apps = sorted(app_breakdown.items(), key=lambda x: x[1]['count'], reverse=True)
+            sorted_actions = sorted(action_breakdown.items(), key=lambda x: x[1], reverse=True)
+            
+            # Convert to expected format
+            top_apps = {}
+            for app, data in sorted_apps[:10]:
+                top_apps[app] = {
+                    'total_activities': data.get('count', 0),
+                    'max_weekly_users': data.get('users', 0)
+                }
+            
+            top_actions = dict(sorted_actions[:15])
             
             deep_dive_data = {
                 'summary': {
-                    'total_apps_used': len(total_app_breakdown),
-                    'total_actions_tracked': len(total_action_breakdown),
-                    'weeks_analyzed': len(weekly_totals),
-                    'latest_week_activities': current_data.get('total_activities', 0) if current_data else 0
+                    'total_apps_used': len(app_breakdown),
+                    'total_actions_tracked': len(action_breakdown),
+                    'weeks_analyzed': 1,  # Only current week
+                    'latest_week_activities': current_data.get('total_activities', 0)
                 },
                 'app_analysis': {
-                    'top_apps': dict(sorted_apps[:10]),
-                    'app_trends': total_app_breakdown
+                    'top_apps': top_apps,
+                    'app_trends': app_breakdown
                 },
                 'action_analysis': {
-                    'top_actions': dict(sorted_actions[:15]),
-                    'action_trends': total_action_breakdown
+                    'top_actions': top_actions,
+                    'action_trends': action_breakdown
                 },
-                'weekly_trends': weekly_totals,
-                'raw_weekly_data': all_weeks,
+                'weekly_trends': [{
+                    'week': 'Current Week (Live)',
+                    'total_activities': current_data.get('total_activities', 0),
+                    'total_users': current_data.get('total_users', 0)
+                }],
+                'raw_weekly_data': {
+                    'Current Week (Live)': current_data
+                },
                 'last_updated': datetime.now().isoformat(),
-                'data_source': 'Cached Historical + Live Current Week (All Apps)',
+                'data_source': 'Live Current Week Only (All Apps) - Fast Mode',
                 'cache_status': {
-                    'historical_cached': os.path.exists(DEEP_DIVE_HISTORICAL_CACHE),
+                    'historical_cached': False,  # No historical data
                     'current_week_live': True
                 }
             }
             
-            logger.info(f"✅ Deep dive data ready: {len(total_app_breakdown)} apps, {len(total_action_breakdown)} actions")
+            logger.info(f"✅ Fast deep dive data ready: {len(app_breakdown)} apps, {len(action_breakdown)} actions")
             return deep_dive_data
             
         except Exception as e:
-            logger.error(f"❌ Error generating deep dive data: {e}")
+            logger.error(f"❌ Error generating fast deep dive data: {e}")
             return {}
 
 

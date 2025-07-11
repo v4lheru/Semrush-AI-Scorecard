@@ -70,7 +70,7 @@ const AILiteracyChart = () => {
         <div className="flex justify-between items-start">
           <div>
             <h3 className="text-lg font-semibold text-text-primary">Week over Week AI Usage</h3>
-            <p className="text-sm text-text-secondary">Weekly active users across ALL Gemini-enabled Workspace apps</p>
+            <p className="text-sm text-text-secondary">Weekly active users of standalone Gemini app</p>
             {loading ? (
               <p className="text-xs text-text-secondary italic mt-1">Loading Gemini analytics...</p>
             ) : error ? (
