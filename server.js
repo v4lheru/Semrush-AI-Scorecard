@@ -130,6 +130,24 @@ app.get('/api/health', (req, res) => {
   })
 })
 
+// Compatibility endpoint - redirect /api/gemini to /api/gemini/usage
+app.get('/api/gemini', async (req, res) => {
+  try {
+    console.log('🔄 Redirecting /api/gemini to /api/gemini/usage')
+    
+    // Forward the request to the usage endpoint
+    const response = await fetch(`${req.protocol}://${req.get('host')}/api/gemini/usage`)
+    const data = await response.json()
+    res.json(data)
+  } catch (error) {
+    console.error('Error in /api/gemini redirect:', error.message)
+    res.status(500).json({ 
+      error: 'Failed to fetch Gemini data',
+      message: error.message 
+    })
+  }
+})
+
 // Optimized Gemini usage data endpoint (cached + live)
 app.get('/api/gemini/usage', async (req, res) => {
   try {
@@ -165,39 +183,18 @@ app.get('/api/gemini/usage', async (req, res) => {
           console.log(`✅ Optimized Gemini data: ${geminiData.summary.latest_week_users} users (${geminiData.cache_status.historical_cached ? 'cached' : 'fresh'} historical + live current)`)
           res.json(geminiData)
         } else {
-          // Fallback to mock data if Python script fails
-          console.log(`⚠️ Cached Python script failed (code: ${code}), using fallback data`)
+          // Return error response instead of fallback data
+          console.log(`❌ Cached Python script failed (code: ${code})`)
           console.log('Python error:', pythonError)
           
-          const fallbackData = {
-            summary: {
-              total_cumulative_users: 298,
-              latest_week_activities: 6059,
-              latest_week_users: 298,
-              total_weeks_tracked: 4
-            },
-            time_series: {
-              weeks: ['Week 1 (Jun 20-22)', 'Week 2 (Jun 23-29)', 'Week 3 (Jun 30-Jul 6)', 'Week 4 (Jul 7-Current)'],
-              total_weekly_users: [127, 280, 274, 298],
-              weekly_activities: [968, 4731, 4738, 6059],
-              weekly_unique_users: [127, 280, 274, 298],
-              wow_growth_percent: [120.5, -2.1, 8.8]
-            },
-            latest_week_breakdown: {
-              actions: {'classic_use_case_gemini_app': 6059},
-              categories: {'standalone_gemini': 6059},
-              top_users: []
-            },
-            last_updated: new Date().toISOString(),
-            data_source: `Fallback data - Python error: ${pythonError || 'Unknown error'}`,
-            error: true,
-            cache_status: {
-              historical_cached: false,
-              current_week_live: false
-            }
-          }
-          
-          res.json(fallbackData)
+          res.status(503).json({
+            error: 'Gemini data service unavailable',
+            message: 'Failed to fetch live Gemini analytics data',
+            details: pythonError || 'Python script execution failed',
+            code: code,
+            timestamp: new Date().toISOString(),
+            data_source: 'Service unavailable - no fallback data'
+          })
         }
       } catch (parseError) {
         console.error('Error parsing cached Python output:', parseError)
@@ -213,7 +210,7 @@ app.get('/api/gemini/usage', async (req, res) => {
     // Set timeout for Python script execution (shorter since it's cached)
     setTimeout(() => {
       pythonProcess.kill('SIGTERM')
-      console.log('⚠️ Cached Python script timeout, using fallback data')
+      console.log('⚠️ Cached Python script timeout - service unavailable')
     }, 15000) // 15 second timeout (faster with caching)
 
   } catch (error) {
@@ -260,48 +257,18 @@ app.get('/api/gemini/deep-dive', async (req, res) => {
           console.log(`✅ Deep dive data: ${deepDiveData.summary.total_apps_used} apps, ${deepDiveData.summary.total_actions_tracked} actions`)
           res.json(deepDiveData)
         } else {
-          // Fallback to mock data if Python script fails
-          console.log(`⚠️ Deep dive script failed (code: ${code}), using fallback data`)
+          // Return error response instead of fallback data
+          console.log(`❌ Deep dive script failed (code: ${code})`)
           console.log('Python error:', pythonError)
           
-          const fallbackData = {
-            summary: {
-              total_apps_used: 7,
-              total_actions_tracked: 50,
-              weeks_analyzed: 4,
-              latest_week_activities: 15000
-            },
-            app_analysis: {
-              top_apps: {
-                'gmail': {'total_activities': 35000, 'max_weekly_users': 1200},
-                'gemini_app': {'total_activities': 16000, 'max_weekly_users': 300},
-                'drive': {'total_activities': 8000, 'max_weekly_users': 200},
-                'docs': {'total_activities': 2000, 'max_weekly_users': 50},
-                'sheets': {'total_activities': 1500, 'max_weekly_users': 40}
-              },
-              app_trends: {}
-            },
-            action_analysis: {
-              top_actions: {
-                'suggest_full_replies': 25000,
-                'classic_use_case_gemini_app': 16000,
-                'summarize': 8000,
-                'generate_text': 5000,
-                'proofread': 3000
-              },
-              action_trends: {}
-            },
-            weekly_trends: [],
-            last_updated: new Date().toISOString(),
-            data_source: `Fallback data - Deep dive error: ${pythonError || 'Unknown error'}`,
-            error: true,
-            cache_status: {
-              historical_cached: false,
-              current_week_live: false
-            }
-          }
-          
-          res.json(fallbackData)
+          res.status(503).json({
+            error: 'Deep dive service unavailable',
+            message: 'Failed to fetch live Gemini deep dive data',
+            details: pythonError || 'Python script execution failed',
+            code: code,
+            timestamp: new Date().toISOString(),
+            data_source: 'Service unavailable - no fallback data'
+          })
         }
       } catch (parseError) {
         console.error('Error parsing deep dive output:', parseError)
@@ -317,7 +284,7 @@ app.get('/api/gemini/deep-dive', async (req, res) => {
     // Set timeout for deep dive script
     setTimeout(() => {
       pythonProcess.kill('SIGTERM')
-      console.log('⚠️ Deep dive script timeout, using fallback data')
+      console.log('⚠️ Deep dive script timeout - service unavailable')
     }, 20000) // 20 second timeout
 
   } catch (error) {
