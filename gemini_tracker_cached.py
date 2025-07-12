@@ -308,7 +308,13 @@ class CachedGeminiTracker:
             weekly_users = []
             weekly_activities = []
             
-            for week_label in ['Week 1 (Jun 20-22)', 'Week 2 (Jun 23-29)', 'Week 3 (Jun 30-Jul 6)', 'Week 4 (Jul 7-Current) (Live)']:
+            # Use the actual current week label from current_data
+            current_week_label = current_data.get('period', 'Week 4 (Jul 07-Current) (Live)') if current_data else None
+            expected_weeks = ['Week 1 (Jun 20-22)', 'Week 2 (Jun 23-29)', 'Week 3 (Jun 30-Jul 6)']
+            if current_week_label:
+                expected_weeks.append(current_week_label)
+            
+            for week_label in expected_weeks:
                 if week_label in all_weeks:
                     week_data = all_weeks[week_label]
                     weeks_list.append(week_label.replace(' (Live)', ''))
